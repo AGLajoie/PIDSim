@@ -42,7 +42,7 @@ from gekko import GEKKO
 # ══════════════════════════════════════════════════════════════════════════════
 
 DT     = 0.250      # timestep [s]
-PV_MIN = 20.0
+PV_MIN = 0.0
 PV_MAX = 150.0
 CO_MIN =  0.0
 CO_MAX = 100.0
@@ -512,7 +512,7 @@ def step_route():
         entry = {
             "t":      f"{t_new:.4f}",
             "pv":     f"{pv_new:.4f}",
-            "sp":     f"{sp:.4f}",
+            "sp":     f"{sp:.4f}" if mode == "auto" else "",
             "co":     f"{co:.4f}",
             "error":  f"{err:.4f}" if mode == "auto" else "",
             "kp":     f"{Kp:.4f}",

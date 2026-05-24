@@ -45,3 +45,11 @@ mkvirtualenv --python=python3.10 pidsim-env
 pip install -r requirements.txt
 
 python main.py
+
+—— Step 7 ——————————————————————————————————————
+
+git status
+
+git pull origin
+
+

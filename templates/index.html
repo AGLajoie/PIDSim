@@ -12,8 +12,8 @@
   --border2:#c8c4bc; --text:#1a1916; --muted:#7a776e;
   --accent:#0066cc; --red:#c0392b; --green:#1a7a4a; --amber:#b45309;
   --mono:'DM Mono',monospace; --display:'Syne',sans-serif;
-  --panel-w:244px;   /* sidebar width (desktop) */
-  --panel-h:44vh;    /* panel height (mobile)   */
+  --panel-w:244px;
+  --panel-h:44vh;
   --hdr:46px;
   --ftr:32px;
 }
@@ -57,41 +57,32 @@ header{height:var(--hdr);flex-shrink:0;display:flex;align-items:center;gap:14px;
 .hbtn:hover{background:var(--surface2);border-color:var(--border2)}
 .hbtn.danger:hover{background:#fef2f2;border-color:#fca5a5;color:var(--red)}
 .hbtn-icon{width:12px;height:12px}
-/* hide export/reset labels on very small screens */
 @media(max-width:480px){.hbtn-label{display:none}}
 
-/* ── Body layout ──────────────────────────────────────────────────────────
-   Desktop (≥768px): sidebar | chart  (side by side)
-   Mobile  (<768px): chart (top 56%) / panel (bottom 44%)
-─────────────────────────────────────────────────────────────────────────── */
+/* ── Body layout ─────────────────────────────────────────────────────────── */
 .body-wrap{flex:1;display:flex;overflow:hidden;min-height:0}
 
-/* DESKTOP */
 @media(min-width:768px){
   .body-wrap{flex-direction:row}
   .panel{width:var(--panel-w);flex-shrink:0;border-right:1px solid var(--border);
-    background:var(--surface);display:flex;flex-direction:column;overflow-y:auto;
-    order:0}
+    background:var(--surface);display:flex;flex-direction:column;overflow-y:auto;order:0}
   .chart-area{flex:1;min-width:0;display:flex;flex-direction:column;order:1}
 }
-/* MOBILE */
 @media(max-width:767px){
   .body-wrap{flex-direction:column}
   .panel{order:2;height:var(--panel-h);flex-shrink:0;border-top:1px solid var(--border);
-    background:var(--surface);display:flex;flex-direction:row;flex-wrap:wrap;
-    overflow-y:auto;gap:0}
+    background:var(--surface);display:flex;flex-direction:row;flex-wrap:wrap;overflow-y:auto;gap:0}
   .chart-area{order:1;flex:1;min-height:0}
-  /* Stack panel sections side by side on mobile */
   .sb-section{flex:1 1 50%;min-width:140px;border-bottom:1px solid var(--border);
     border-right:1px solid var(--border)}
 }
 
-/* ── Panel sections ────────────────────────────────────────────────────── */
+/* ── Panel sections ─────────────────────────────────────────────────────── */
 .sb-section{padding:10px 13px;border-bottom:1px solid var(--border)}
 .sb-label{font-size:9px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;
   color:var(--muted);margin-bottom:7px}
 
-/* ── Mode toggle ─────────────────────────────────────────────────────── */
+/* ── Mode toggle ────────────────────────────────────────────────────────── */
 .mode-toggle{display:grid;grid-template-columns:1fr 1fr;
   border:1px solid var(--border);border-radius:5px;overflow:hidden}
 .mode-btn{padding:7px 0;background:none;border:none;font-family:var(--mono);
@@ -101,7 +92,7 @@ header{height:var(--hdr);flex-shrink:0;display:flex;align-items:center;gap:14px;
 .mode-btn.am{background:var(--amber);color:#fff}
 .mode-btn.aa{background:var(--green);color:#fff}
 
-/* ── Sliders ─────────────────────────────────────────────────────────── */
+/* ── Sliders ────────────────────────────────────────────────────────────── */
 .ctrl-row{display:flex;flex-direction:column;gap:3px;margin-top:6px}
 .ctrl-row:first-of-type{margin-top:0}
 .ctrl-label{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
@@ -117,7 +108,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 .sl-sp::-webkit-slider-thumb{background:var(--red)}
 .sl-pid::-webkit-slider-thumb{background:var(--muted)}
 
-/* ── Readouts ────────────────────────────────────────────────────────── */
+/* ── Readouts ────────────────────────────────────────────────────────────── */
 .readouts{display:grid;grid-template-columns:1fr 1fr;gap:5px}
 .rdout{background:var(--surface2);border:1px solid var(--border);
   border-radius:5px;padding:5px 8px;transition:border-color .2s,background .2s}
@@ -129,26 +120,31 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 .rdout.sat-hi{border-color:#fca5a5;background:#fff5f5}
 .rdout.sat-lo{border-color:#93c5fd;background:#eff6ff}
 
-/* ── Anti-windup badge ──────────────────────────────────────────────── */
+/* ── Anti-windup badge ──────────────────────────────────────────────────── */
 .aw-badge{display:none;margin-top:4px;padding:3px 6px;border-radius:3px;
   font-size:10px;letter-spacing:.05em;text-align:center;font-weight:500}
 .aw-badge.hi{display:block;background:#fef2f2;color:var(--red);border:1px solid #fca5a5}
 .aw-badge.lo{display:block;background:#eff6ff;color:var(--accent);border:1px solid #93c5fd}
 
-/* ── Select ─────────────────────────────────────────────────────────── */
+/* ── Select ─────────────────────────────────────────────────────────────── */
 select{width:100%;padding:4px 7px;border-radius:4px;border:1px solid var(--border);
   background:var(--surface2);color:var(--text);font-family:var(--mono);
   font-size:11px;cursor:pointer;outline:none}
 
-/* ── Historian info bar ─────────────────────────────────────────────── */
+/* ── Sync badge ──────────────────────────────────────────────────────────── */
+#syncBadge{font-size:9px;color:var(--muted);text-align:right;padding:2px 8px 0;
+  letter-spacing:.06em;text-transform:uppercase}
+#syncBadge.changed{color:var(--green);font-weight:500}
+
+/* ── Historian info bar ─────────────────────────────────────────────────── */
 #histBar{font-size:10px;color:var(--muted);text-align:right;padding:2px 8px 0}
 
-/* ── Chart area ──────────────────────────────────────────────────────── */
+/* ── Chart area ─────────────────────────────────────────────────────────── */
 .chart-area{background:var(--bg)}
 .chart-wrap{width:100%;height:100%;position:relative}
 #chart{width:100%;height:100%}
 
-/* ── Footer ───────────────────────────────────────────────────────────── */
+/* ── Footer ─────────────────────────────────────────────────────────────── */
 footer{height:var(--ftr);flex-shrink:0;display:flex;align-items:center;gap:12px;
   padding:0 14px;border-top:1px solid var(--border);background:var(--surface);
   font-size:10px;color:var(--muted)}
@@ -225,13 +221,13 @@ Dashboard connects to <strong id="ovApiUrl"></strong>.</div>
     <div class="sb-section" id="secSP" style="display:none">
       <div class="sb-label">Setpoint</div>
       <div class="ctrl-row">
-        <div class="ctrl-label">SP (eng) <span class="ctrl-val" id="spDisp">20.0</span></div>
-        <input type="range" min="0" max="100" value="0" step="0.5"
+        <div class="ctrl-label">SP (eng) <span class="ctrl-val" id="spDisp">0.0</span></div>
+        <input type="range" min="0" max="150" value="0" step="0.5"
                class="sl-sp" id="slSP" oninput="onSP(this.value)" style="--pct:0">
       </div>
     </div>
 
-    <!-- Live readings — populated from historian -->
+    <!-- Live readings -->
     <div class="sb-section">
       <div class="sb-label">Live Readings</div>
       <div class="readouts">
@@ -255,7 +251,7 @@ Dashboard connects to <strong id="ovApiUrl"></strong>.</div>
       <div class="aw-badge" id="awBadge"></div>
     </div>
 
-    <!-- PID tuning — gains come back via historian -->
+    <!-- PID tuning -->
     <div class="sb-section">
       <div class="sb-label">PID Tuning</div>
       <div class="ctrl-row">
@@ -280,6 +276,12 @@ Dashboard connects to <strong id="ovApiUrl"></strong>.</div>
       <div class="sb-label">Process Model</div>
       <select id="selModel" onchange="onModelChange()"></select>
       <div id="procParams"></div>
+    </div>
+
+    <!-- Sync status -->
+    <div class="sb-section">
+      <div class="sb-label">Multi-Device</div>
+      <div id="syncBadge">synced</div>
     </div>
 
     <!-- Historian info -->
@@ -311,19 +313,25 @@ const API = (location.protocol === 'file:') ? _PA_URL : window.location.origin;
 const WIN = 60;   // rolling window [s]
 
 // ── Server config ─────────────────────────────────────────────────────────────
-let PV_MIN = 20, PV_MAX = 150, CO_MIN = 0, CO_MAX = 100;
+let PV_MIN = 0, PV_MAX = 150, CO_MIN = 0, CO_MAX = 100;
 let serverConfig = null;
 
-// ── Control state (sent to server) ───────────────────────────────────────────
+// ── Local UI state (mirrors what we last sent to server) ──────────────────────
 let mode         = 'manual';
 let co_man       = 0.0;
-let sp_eng       = PV_MIN;
+let sp_eng       = 0.0;
 let sp_pct       = 0.0;
 let gains        = {kp:1.0, ki:1.0, kd:0.0};
 let modelKey     = '1st Order';
 let modelParamVals = {};
 let lastCO       = 0.0;
-let modeEvents   = [];
+
+// ── Debounce timer for slider sends ──────────────────────────────────────────
+let _sendTimer = null;
+function _scheduleSend() {
+  clearTimeout(_sendTimer);
+  _sendTimer = setTimeout(sendControl, 120);
+}
 
 // ── Plotly ────────────────────────────────────────────────────────────────────
 let LAYOUT = {
@@ -335,9 +343,9 @@ let LAYOUT = {
           font:{size:11},bgcolor:'rgba(0,0,0,0)'},
   xaxis:{title:{text:'Time (s)',standoff:6},color:'#7a776e',gridcolor:'#e8e5df',
          zerolinecolor:'#d8d5ce',tickfont:{size:10},linecolor:'#d8d5ce',mirror:true},
-  yaxis:{title:{text:'PV / SP (Eng)',standoff:6},range:[PV_MIN,PV_MAX],
+  yaxis:{title:{text:'PV / SP (Eng)',standoff:6},range:[0, 150],
          color:'#7a776e',gridcolor:'#e8e5df',tickfont:{size:10},linecolor:'#d8d5ce',mirror:true},
-  yaxis2:{title:{text:'CO (%)',standoff:6},range:[CO_MIN,CO_MAX],
+  yaxis2:{title:{text:'CO (%)',standoff:6},range:[0, 100],
           overlaying:'y',side:'right',color:'#0066cc',gridcolor:'rgba(0,0,0,0)',
           tickfont:{size:10,color:'#0066cc'},titlefont:{color:'#0066cc'},linecolor:'#d8d5ce'},
   shapes:[], annotations:[]
@@ -361,6 +369,10 @@ async function loadConfig() {
   CO_MIN = serverConfig.co_min; CO_MAX = serverConfig.co_max;
   LAYOUT.yaxis.range  = [PV_MIN, PV_MAX];
   LAYOUT.yaxis2.range = [CO_MIN, CO_MAX];
+
+  // Update SP slider range to match PV scale
+  const slSP = document.getElementById('slSP');
+  slSP.min = PV_MIN; slSP.max = PV_MAX;
 
   const sel = document.getElementById('selModel');
   sel.innerHTML = '';
@@ -407,6 +419,7 @@ function onModelParam(key, v, min, max) {
   modelParamVals[key] = f;
   document.getElementById(`lbl_${key}`).textContent = f.toFixed(2);
   document.getElementById(`sl_${key}`).style.setProperty('--pct', pct);
+  _scheduleSend();
 }
 
 // ── Connection ────────────────────────────────────────────────────────────────
@@ -415,6 +428,8 @@ async function tryConnect() {
     const r = await fetch(`${API}/ping`, {signal: AbortSignal.timeout(2500)});
     if ((await r.json()).ok) {
       await loadConfig();
+      // Sync UI to server's current control state on first connect
+      await syncControlState(true);
       document.getElementById('overlay').classList.add('hidden');
       document.getElementById('liveDot').classList.remove('err');
       return true;
@@ -422,30 +437,141 @@ async function tryConnect() {
   } catch(e){}
   return false;
 }
-async function retryConnect() { if (await tryConnect()) tick(); }
+async function retryConnect() { if (await tryConnect()) startPolling(); }
 
-// ── Request body ──────────────────────────────────────────────────────────────
-function buildBody() {
-  return { mode, co_man, sp_eng, process_model: modelKey,
-           kp: gains.kp, ki: gains.ki, kd: gains.kd, ...modelParamVals };
+// ── Send control intent to server ────────────────────────────────────────────
+async function sendControl(extra) {
+  const body = {
+    mode, co_man, sp_eng,
+    process_model: modelKey,
+    kp: gains.kp, ki: gains.ki, kd: gains.kd,
+    ...modelParamVals,
+    ...(extra || {})
+  };
+  try {
+    const r = await fetch(`${API}/control`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(3000),
+    });
+    const d = await r.json();
+    lastCO = d.last_co;
+  } catch(e) {}
 }
 
-// ── Data arrays (rolling window, from historian) ───────────────────────────────
-let tArr=[], pvArr=[], spArr=[], coArr=[];
+// ── Sync UI from server's shared control state ────────────────────────────────
+// Called periodically so all devices stay in sync.
+let _lastSyncMode = null;
+let _lastSyncSP   = null;
+let _lastSyncCO   = null;
 
-// ── Historian poll (every tick, separately from step) ─────────────────────────
-// The historian endpoint returns the last N entries.
-// We use it as the single source of truth for readouts + chart data.
+async function syncControlState(force) {
+  try {
+    const r = await fetch(`${API}/control_state`, {signal: AbortSignal.timeout(2500)});
+    const d = await r.json();
+
+    const srvMode = d.mode;
+    const srvSP   = d.sp_eng;
+    const srvCO   = d.co_man;
+
+    let changed = force ||
+      srvMode !== _lastSyncMode ||
+      Math.abs(srvSP - (_lastSyncSP ?? srvSP + 1)) > 0.01 ||
+      Math.abs(srvCO - (_lastSyncCO ?? srvCO + 1)) > 0.01;
+
+    _lastSyncMode = srvMode;
+    _lastSyncSP   = srvSP;
+    _lastSyncCO   = srvCO;
+    lastCO        = d.last_co;
+
+    if (changed) {
+      // Update gains
+      if (d.kp !== undefined) {
+        gains.kp = d.kp; gains.ki = d.ki; gains.kd = d.kd;
+        _setSlider('slKp', gains.kp, 0, 20);
+        _setSlider('slKi', gains.ki, 0, 10);
+        _setSlider('slKd', gains.kd, 0, 5);
+        document.getElementById('lblKp').textContent = gains.kp.toFixed(2);
+        document.getElementById('lblKi').textContent = gains.ki.toFixed(2);
+        document.getElementById('lblKd').textContent = gains.kd.toFixed(2);
+      }
+
+      // Update model if changed
+      if (d.process_model && d.process_model !== modelKey) {
+        modelKey = d.process_model;
+        document.getElementById('selModel').value = modelKey;
+        if (d.model_params) modelParamVals = {...d.model_params};
+        buildModelParams();
+      } else if (d.model_params) {
+        // Update model param sliders
+        for (const [k, v] of Object.entries(d.model_params)) {
+          modelParamVals[k] = v;
+          const lbl = document.getElementById(`lbl_${k}`);
+          const sl  = document.getElementById(`sl_${k}`);
+          if (lbl) lbl.textContent = parseFloat(v).toFixed(2);
+          if (sl) {
+            sl.value = v;
+            const min = parseFloat(sl.min), max = parseFloat(sl.max);
+            sl.style.setProperty('--pct', ((v - min)/(max - min)*100).toFixed(1));
+          }
+        }
+      }
+
+      // Apply mode change without triggering a re-send
+      if (srvMode !== mode) {
+        mode = srvMode;
+        _applyModeUI(mode);
+      }
+
+      // Apply SP/CO
+      if (mode === 'auto') {
+        sp_eng = srvSP;
+        sp_pct = Math.max(0, Math.min(100, (sp_eng - PV_MIN) / (PV_MAX - PV_MIN) * 100));
+        _setSlider('slSP', sp_eng, PV_MIN, PV_MAX);
+        document.getElementById('spDisp').textContent = sp_eng.toFixed(2);
+      } else {
+        co_man = srvCO;
+        _setSlider('slCO', co_man, 0, 100);
+        document.getElementById('coDisp').textContent = co_man.toFixed(1);
+      }
+
+      // Flash sync badge
+      const badge = document.getElementById('syncBadge');
+      badge.textContent = '↺ synced from server';
+      badge.classList.add('changed');
+      setTimeout(() => { badge.textContent = 'synced'; badge.classList.remove('changed'); }, 1500);
+    }
+  } catch(e) {}
+}
+
+function _setSlider(id, val, min, max) {
+  const sl = document.getElementById(id);
+  if (!sl) return;
+  sl.value = val;
+  sl.style.setProperty('--pct', ((val - min) / (max - min) * 100).toFixed(1));
+}
+
+function _applyModeUI(m) {
+  document.getElementById('btnMan').className = 'mode-btn' + (m==='manual' ? ' am' : '');
+  document.getElementById('btnAut').className = 'mode-btn' + (m==='auto'   ? ' aa' : '');
+  document.getElementById('secCO').style.display = m==='manual' ? '' : 'none';
+  document.getElementById('secSP').style.display = m==='auto'   ? '' : 'none';
+  document.getElementById('footChip').textContent = m==='auto' ? 'Auto' : 'Manual';
+  document.getElementById('footChip').className   = m==='auto' ? 'chip chip-auto' : 'chip chip-man';
+}
+
+// ── Historian parse + chart update ───────────────────────────────────────────
+let tArr=[], pvArr=[], spArr=[], coArr=[];
 
 function _parseHistorian(entries) {
   if (!entries || entries.length === 0) return;
 
-  // Rebuild rolling arrays from historian (last WIN seconds)
   const last = entries[entries.length - 1];
   const tMax = parseFloat(last.t || 0);
   const tMin = tMax - WIN;
 
-  tArr  = []; pvArr = []; spArr = []; coArr = [];
+  tArr=[]; pvArr=[]; spArr=[]; coArr=[];
   for (const e of entries) {
     const t = parseFloat(e.t);
     if (t < tMin) continue;
@@ -455,7 +581,6 @@ function _parseHistorian(entries) {
     coArr.push(parseFloat(e.co));
   }
 
-  // Mode-change annotations from historian mode field
   const visEv = [];
   let prevMode = entries.length ? entries[0].mode : null;
   for (const e of entries) {
@@ -489,7 +614,6 @@ function _parseHistorian(entries) {
     {transition:{duration:0}}
   );
 
-  // Readouts from last historian entry
   const pv  = parseFloat(last.pv);
   const sp  = last.sp !== '' && last.sp !== undefined ? parseFloat(last.sp) : null;
   const co  = parseFloat(last.co);
@@ -502,14 +626,12 @@ function _parseHistorian(entries) {
   document.getElementById('rdER').textContent  = err !== null ? err.toFixed(2) : '—';
   document.getElementById('tDisp').textContent = 't = ' + t.toFixed(1) + ' s';
 
-  // Kp/Ki/Kd display (from historian, not from slider state)
   if (last.kp !== undefined) {
     document.getElementById('lblKp').textContent = parseFloat(last.kp).toFixed(2);
     document.getElementById('lblKi').textContent = parseFloat(last.ki).toFixed(2);
     document.getElementById('lblKd').textContent = parseFloat(last.kd).toFixed(2);
   }
 
-  // SAT / AW indicator
   const satEl = document.getElementById('satMsg');
   const coBox = document.getElementById('rdCOBox');
   const aw    = document.getElementById('awBadge');
@@ -526,46 +648,45 @@ function _parseHistorian(entries) {
     coBox.className   = 'rdout'; aw.className = 'aw-badge';
   }
 
-  // Model name from historian
   if (last.model) document.getElementById('footModel').textContent = last.model;
 }
 
-// ── Main tick ─────────────────────────────────────────────────────────────────
-let busy = false;
-async function tick() {
-  if (busy) { setTimeout(tick, 50); return; }
-  busy = true;
-  try {
-    // 1. Advance simulation
-    const res = await fetch(`${API}/step`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(buildBody()),
-      signal: AbortSignal.timeout(3000),
-    });
-    const d = await res.json();
-    lastCO = d.last_co;
+// ── Poll loop (historian + control sync) ──────────────────────────────────────
+// We no longer drive the simulation from the client.
+// We just read historian (charts/readouts) + control_state (UI sync).
+let _pollBusy = false;
+let _syncCounter = 0;
 
-    // 2. Pull historian for chart + readouts
-    // Request enough entries to fill the rolling window (WIN/DT + small buffer)
-    const n  = Math.ceil(WIN / 0.05) + 50;
+async function poll() {
+  if (_pollBusy) { setTimeout(poll, 300); return; }
+  _pollBusy = true;
+  try {
+    // Always refresh historian
+    const n  = Math.ceil(WIN / DT_approx) + 50;
     const hr = await fetch(`${API}/historian?n=${n}`,
                            {signal: AbortSignal.timeout(3000)});
     const hd = await hr.json();
     _parseHistorian(hd.entries);
-    document.getElementById('histBar').textContent =
-      `${hd.size_kb} KB logged`;
+    document.getElementById('histBar').textContent = `${hd.size_kb} KB logged`;
+
+    // Sync control state every 5th poll (~1.5 s) to catch changes from other devices
+    _syncCounter++;
+    if (_syncCounter % 5 === 0) await syncControlState(false);
 
     document.getElementById('liveDot').classList.remove('err');
   } catch(e) {
     document.getElementById('liveDot').classList.add('err');
     document.getElementById('satMsg').textContent = 'SERVER OFFLINE';
     document.getElementById('overlay').classList.remove('hidden');
-    busy = false; return;
+    _pollBusy = false; return;
   }
-  busy = false;
-  setTimeout(tick, 50);
+  _pollBusy = false;
+  setTimeout(poll, 300);  // poll ~3x/sec (sim runs at DT=0.25s server-side)
 }
+
+const DT_approx = 0.25;  // server DT
+
+function startPolling() { poll(); }
 
 // ── Mode switch ───────────────────────────────────────────────────────────────
 async function setMode(m) {
@@ -576,25 +697,18 @@ async function setMode(m) {
       const ts = await r.json();
       sp_eng = ts.sp_eng;
       sp_pct = Math.max(0, Math.min(100, (sp_eng - PV_MIN) / (PV_MAX - PV_MIN) * 100));
-      const sl = document.getElementById('slSP');
-      sl.value = sp_pct;
-      sl.style.setProperty('--pct', sp_pct.toFixed(1));
+      _setSlider('slSP', sp_eng, PV_MIN, PV_MAX);
       document.getElementById('spDisp').textContent = sp_eng.toFixed(2);
     } catch(e){}
   } else {
     co_man = Math.round(lastCO * 2) / 2;
-    const sl = document.getElementById('slCO');
-    sl.value = co_man;
-    sl.style.setProperty('--pct', co_man.toFixed(1));
+    _setSlider('slCO', co_man, 0, 100);
     document.getElementById('coDisp').textContent = co_man.toFixed(1);
   }
   mode = m;
-  document.getElementById('btnMan').className = 'mode-btn' + (m==='manual' ? ' am' : '');
-  document.getElementById('btnAut').className = 'mode-btn' + (m==='auto'   ? ' aa' : '');
-  document.getElementById('secCO').style.display = m==='manual' ? '' : 'none';
-  document.getElementById('secSP').style.display = m==='auto'   ? '' : 'none';
-  document.getElementById('footChip').textContent = m==='auto' ? 'Auto' : 'Manual';
-  document.getElementById('footChip').className   = m==='auto' ? 'chip chip-auto' : 'chip chip-man';
+  _applyModeUI(mode);
+  // Send immediately so other devices sync promptly
+  await sendControl();
 }
 
 // ── Slider handlers ───────────────────────────────────────────────────────────
@@ -602,20 +716,24 @@ function onCO(v) {
   co_man = parseFloat(v);
   document.getElementById('coDisp').textContent = co_man.toFixed(1);
   document.getElementById('slCO').style.setProperty('--pct', v);
+  _scheduleSend();
 }
 function onSP(v) {
-  sp_pct = parseFloat(v);
-  sp_eng = PV_MIN + sp_pct / 100 * (PV_MAX - PV_MIN);
+  // SP slider goes 0–150 eng units directly (no percent conversion needed)
+  sp_eng = parseFloat(v);
+  sp_pct = (sp_eng - PV_MIN) / (PV_MAX - PV_MIN) * 100;
   document.getElementById('spDisp').textContent = sp_eng.toFixed(2);
-  document.getElementById('slSP').style.setProperty('--pct', v);
+  document.getElementById('slSP').style.setProperty('--pct',
+    ((sp_eng - PV_MIN)/(PV_MAX - PV_MIN)*100).toFixed(1));
+  _scheduleSend();
 }
 function onGain(key, v, min, max) {
   const f   = parseFloat(v);
   const pct = ((f - min) / (max - min) * 100).toFixed(1);
   gains[key] = f;
-  // Label is refreshed via historian on next tick; immediate local feedback:
   document.getElementById('lbl' + key.charAt(0).toUpperCase() + key.slice(1)).textContent = f.toFixed(2);
   document.getElementById('sl'  + key.charAt(0).toUpperCase() + key.slice(1)).style.setProperty('--pct', pct);
+  _scheduleSend();
 }
 
 // ── Export / Reset ────────────────────────────────────────────────────────────
@@ -632,17 +750,18 @@ async function resetSim() {
   await fetch(`${API}/reset`, {method:'POST',
     headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
   tArr=[]; pvArr=[]; spArr=[]; coArr=[];
-  lastCO=0; co_man=0; sp_pct=0; sp_eng=PV_MIN;
-  const slCO = document.getElementById('slCO');
-  slCO.value=0; slCO.style.setProperty('--pct',0);
+  lastCO=0; co_man=0; sp_pct=0; sp_eng=PV_MIN; mode='manual';
+  _applyModeUI('manual');
+  _setSlider('slCO', 0, 0, 100);
   document.getElementById('coDisp').textContent='0.0';
   Plotly.react('chart', BASE_TRACES.map(t=>({...t,x:[],y:[]})), LAYOUT);
   document.getElementById('histBar').textContent='— KB';
+  _lastSyncMode = null; _lastSyncSP = null; _lastSyncCO = null;
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 document.getElementById('ovApiUrl').textContent = API;
-tryConnect().then(ok => { if (ok) tick(); });
+tryConnect().then(ok => { if (ok) startPolling(); });
 </script>
 </body>
 </html>

@@ -457,7 +457,7 @@ function _parseHistorian(entries) {
 
   // Mode-change annotations from historian mode field
   const visEv = [];
-  let prevMode = null;
+  let prevMode = entries.length ? entries[0].mode : null;
   for (const e of entries) {
     const t = parseFloat(e.t);
     if (t < tMin) { prevMode = e.mode; continue; }

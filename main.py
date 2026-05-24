@@ -512,7 +512,7 @@ def step_route():
         entry = {
             "t":      f"{t_new:.4f}",
             "pv":     f"{pv_new:.4f}",
-            "sp":     f"{sp:.4f}" if mode == "auto" else "",
+            "sp":     f"{sp:.4f}",
             "co":     f"{co:.4f}",
             "error":  f"{err:.4f}" if mode == "auto" else "",
             "kp":     f"{Kp:.4f}",

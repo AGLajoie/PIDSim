@@ -153,7 +153,7 @@ class BaseProcessModel(ABC):
 
 def _gekko_fo(pv0: float, u: float, tau: float, kgain: float) -> float:
     """First-order ODE step via GEKKO: tau*dy/dt = -y + K*u"""
-    m = GEKKO(remote=False)
+    m = GEKKO(remote=True)
     m.time = [0.0, DT]
     y = m.Var(value=pv0)
     m.Equation(tau * y.dt() == -y + kgain * u)
@@ -173,7 +173,7 @@ def _gekko_so(pv0: float, dpv0: float,
       tau^2 * y'' + 2*zeta*tau * y' + y = K*u
     State: (y, y')
     """
-    m = GEKKO(remote=False)
+    m = GEKKO(remote=True)
     m.time = [0.0, DT]
     y1 = m.Var(value=pv0)
     y2 = m.Var(value=dpv0)
@@ -191,7 +191,7 @@ def _gekko_so(pv0: float, dpv0: float,
 
 def _gekko_integrator(pv0: float, u: float, kgain: float) -> float:
     """Pure integrator: dy/dt = K*u"""
-    m = GEKKO(remote=False)
+    m = GEKKO(remote=True)
     m.time = [0.0, DT]
     y = m.Var(value=pv0)
     m.Equation(y.dt() == kgain * u)

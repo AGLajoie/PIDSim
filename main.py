@@ -37,21 +37,11 @@ from abc import ABC, abstractmethod
 from collections import deque
 import csv, io, math, threading
 
-import os
-
-from flask import Flask, request, jsonify, Response, send_from_directory
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from gekko import GEKKO
 
-# ── Environment detection ─────────────────────────────────────────────────────
-# PythonAnywhere sets the PYTHONANYWHERE_SITE env var; everything else is local.
-ON_PYTHONANYWHERE = bool(os.environ.get("PYTHONANYWHERE_SITE"))
-
-# Resolve the directory that contains this file so static assets are found
-# regardless of the working directory from which the server is launched.
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-app = Flask(__name__, static_folder=BASE_DIR, static_url_path="")
+app = Flask(__name__)
 CORS(app)
 
 # ── Global constants ──────────────────────────────────────────────────────────
@@ -137,7 +127,6 @@ def pid_preload(co_man: float, pv: float, sp: float,
 # ═══════════════════════════════════════════════════════════════════════════════
 #  PROCESS MODELS
 # ═══════════════════════════════════════════════════════════════════════════════
-
 class BaseProcessModel(ABC):
     """
     Subclass and register in PROCESS_MODELS to add a new model.
@@ -227,7 +216,6 @@ def _delay_buffer(state: dict, key: str,
 
 
 # ── Process model classes ─────────────────────────────────────────────────────
-
 class IntegratorProcess(BaseProcessModel):
     """dy/dt = K * u"""
     name   = "Integrator"
@@ -382,13 +370,6 @@ log: list[dict] = []
 # ═══════════════════════════════════════════════════════════════════════════════
 #  FLASK ROUTES
 # ═══════════════════════════════════════════════════════════════════════════════
-
-@app.route("/")
-def index():
-    """Serve the frontend. Works both locally and on PythonAnywhere."""
-    return send_from_directory(BASE_DIR, "index.html")
-
-
 @app.route("/ping", methods=["GET"])
 def ping():
     return jsonify({"ok": True})
@@ -532,9 +513,6 @@ def status():
 application = app   # <── required by PythonAnywhere WSGI
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5050))
-    print(f"PID Server  →  http://localhost:{port}")
-    print("Open the URL above in your browser to load the dashboard.")
-    # debug=True enables auto-reload on file save (VS Code dev workflow).
-    # threaded=False keeps GEKKO's temp-file usage single-threaded and safe.
-    app.run(host="0.0.0.0", port=port, debug=not ON_PYTHONANYWHERE, threaded=False)
+    # Local dev only — not used on PythonAnywhere
+    print("PID Server  →  http://localhost:5050")
+    app.run(host="0.0.0.0", port=5050, threaded=False)

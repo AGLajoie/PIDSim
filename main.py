@@ -42,7 +42,7 @@ from flask_cors import CORS
 from gekko import GEKKO
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # ── Global constants ──────────────────────────────────────────────────────────
 DT     = 0.05      # simulation timestep [s]

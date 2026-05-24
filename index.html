@@ -275,7 +275,7 @@
 //     to the PythonAnywhere URL so it still works as a standalone file.
 //   • Otherwise use window.location.origin — Flask serves both the frontend
 //     and the API from the same origin, so no hardcoding is needed.
-const _PA_URL = 'https://AGLajoie.pythonanywhere.com';
+const _PA_URL = 'https://aglajoie.pythonanywhere.com';
 const API = (location.protocol === 'file:') ? _PA_URL : window.location.origin;
 const WIN = 60;   // seconds of rolling history
 

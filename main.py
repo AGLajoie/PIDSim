@@ -37,12 +37,12 @@ from abc import ABC, abstractmethod
 from collections import deque
 import csv, io, math, threading
 
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, render_template
 from flask_cors import CORS
 from gekko import GEKKO
 
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+app = Flask(__name__, template_folder='templates')
+CORS(app)
 
 # ── Global constants ──────────────────────────────────────────────────────────
 DT     = 0.05      # simulation timestep [s]
@@ -503,7 +503,10 @@ def status():
             "t": state["t"], "pv": state["pv"],
             "last_co": state["last_co"],
         })
-
+    
+@app.route("/")
+def index():
+    return render_template("index.html")
 
 # ── PythonAnywhere WSGI entry point ───────────────────────────────────────────
 # PythonAnywhere serves the app via WSGI; the `application` variable is what

@@ -41,7 +41,7 @@ from gekko import GEKKO
 #  SIMULATION CONSTANTS
 # ══════════════════════════════════════════════════════════════════════════════
 
-DT     = 0.05      # timestep [s]
+DT     = 0.250      # timestep [s]
 PV_MIN = 20.0
 PV_MAX = 150.0
 CO_MIN =  0.0

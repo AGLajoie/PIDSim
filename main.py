@@ -1,5 +1,7 @@
 """
-pid_server.py  –  Flask + GEKKO closed-loop PID simulation backend.
+main.py  –  Flask + GEKKO closed-loop PID simulation backend.
+
+Includes all GEKKO-based process model definitions (originally process_models.py).
 
 Signal convention (engineering units throughout):
   PV   [eng]      process variable
@@ -12,146 +14,46 @@ PID formula (ISA, derivative on measurement):
   u_raw = Kp*err + Ki*ierr - Kd*dPV/dt
 
 Anti-windup – conditional integration (clamping):
-  The integrator only accumulates when the output is NOT saturated,
-  OR when integrating would move the output back inside limits.
-  Condition:  integrate iff  (co == u_raw)  or  sign(err) != sign(u_raw - co)
-  This is unambiguous, requires no tuning constant, and guarantees
-  the integrator never winds up past the point where saturation ends.
+  Integrate only when NOT saturated or when integrating would move output
+  back inside limits.
 
 Bumpless MAN→AUTO:
   SP  ← current PV  (zero initial error)
   ierr← (co_man - Kp*err) / Ki  (first CO output ≈ last manual CO)
-  pv_prev ← current PV  (zero initial derivative)
 
-Bumpless AUTO→MAN:
-  last_co returned every tick; frontend seeds CO slider to it.
-
-Dead-time models:
-  Implemented as a ring-buffer delay line (no GEKKO needed for delay).
-  The ODE is stepped with GEKKO; the delay is applied to the CO signal
-  before it enters the ODE.
+historian.xml is written at every simulation step. It is kept compact
+(no in-memory list) to stay well inside the 512 MB storage limit for
+10+ min of logging at DT=0.05 s (~12 000 entries/min).
 """
 
 from __future__ import annotations
+import io, math, os, threading, xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from collections import deque
-import csv, io, math, threading
+from datetime import datetime
 
-from flask import Flask, request, jsonify, Response, render_template
+from flask import Flask, request, jsonify, Response, render_template, send_file
 from flask_cors import CORS
 from gekko import GEKKO
 
-app = Flask(__name__, template_folder='templates')
-CORS(app)
 
-# ── Global constants ──────────────────────────────────────────────────────────
-DT     = 0.05      # simulation timestep [s]
+# ══════════════════════════════════════════════════════════════════════════════
+#  SIMULATION CONSTANTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+DT     = 0.05      # timestep [s]
 PV_MIN = 20.0
 PV_MAX = 150.0
 CO_MIN =  0.0
 CO_MAX = 100.0
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  PID CONTROLLER
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# Controller params spec (shown in UI)
-PID_PARAMS = [
-    {"key":"kp","label":"Kp","min": 0,  "max":20, "default":1.0, "step":0.1},
-    {"key":"ki","label":"Ki","min": 0,  "max":10, "default":1.0, "step":0.05},
-    {"key":"kd","label":"Kd","min": 0,  "max":5,  "default":0.0, "step":0.01},
-]
-
-
-def pid_step(
-    pv:      float,
-    sp:      float,
-    pv_prev: float,
-    ierr:    float,
-    Kp:      float,
-    Ki:      float,
-    Kd:      float,
-    co_min:  float = CO_MIN,
-    co_max:  float = CO_MAX,
-) -> tuple[float, float]:
-    """
-    One discrete PID step with conditional-integration anti-windup.
-
-    Returns
-    -------
-    co   : clamped output [%]
-    ierr : updated integrator state [eng·s]
-
-    All signals in engineering units.
-    Derivative is on PV (not error) → no derivative kick on SP steps.
-
-    Anti-windup (conditional integration / clamping):
-      Integrate only when NOT saturated, or when error would pull output
-      back inside limits.  Formally:
-        saturated_hi = u_raw > co_max
-        saturated_lo = u_raw < co_min
-        integrate = (not saturated_hi or err < 0) and
-                    (not saturated_lo or err > 0)
-      This is equivalent to back-calculation with Tt→0 (hard clamp) but
-      without any tuning parameter and with guaranteed windup prevention.
-    """
-    err    = sp - pv
-    dpv_dt = (pv - pv_prev) / DT
-    u_raw  = Kp * err + Ki * ierr - Kd * dpv_dt
-
-    # Clamp
-    co = max(co_min, min(co_max, u_raw))
-
-    # Conditional integration anti-windup
-    sat_hi = u_raw > co_max
-    sat_lo = u_raw < co_min
-    integrate = (not sat_hi or err < 0.0) and (not sat_lo or err > 0.0)
-    if integrate:
-        ierr += err * DT
-
-    return co, ierr
-
-
-def pid_preload(co_man: float, pv: float, sp: float,
-                Kp: float, Ki: float) -> dict:
-    """
-    Pre-load integrator for bumpless MAN→AUTO.
-    Solves:  co_man = Kp*(sp-pv) + Ki*ierr  →  ierr = (co_man - Kp*err)/Ki
-    """
-    err  = sp - pv
-    ierr = (co_man - Kp * err) / Ki if Ki > 1e-9 else 0.0
-    return {"ierr": ierr, "pv_prev": pv}
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  PROCESS MODELS
-# ═══════════════════════════════════════════════════════════════════════════════
-class BaseProcessModel(ABC):
-    """
-    Subclass and register in PROCESS_MODELS to add a new model.
-    step() receives (pv, co, model_state, params) and returns (new_pv, new_state).
-    model_state is a dict managed by the server; models may use it freely.
-    """
-    name:   str  = ""
-    params: list = []
-
-    @abstractmethod
-    def step(self, pv: float, co: float,
-             model_state: dict, params: dict) -> tuple[float, dict]:
-        """Advance one DT. Returns (new_pv, new_model_state)."""
-
-    def initial_state(self, params: dict) -> dict:
-        return {}
-
-    def initial_pv(self) -> float:
-        return PV_MIN
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  GEKKO ODE HELPERS  (one small GEKKO instance per call, cleaned up after)
+# ══════════════════════════════════════════════════════════════════════════════
 
 def _gekko_fo(pv0: float, u: float, tau: float, kgain: float) -> float:
-    """First-order ODE step via GEKKO: tau*dy/dt = -y + K*u"""
+    """First-order ODE: tau * dy/dt = -y + K*u"""
     m = GEKKO(remote=False)
     m.time = [0.0, DT]
     y = m.Var(value=pv0)
@@ -167,18 +69,14 @@ def _gekko_fo(pv0: float, u: float, tau: float, kgain: float) -> float:
 def _gekko_so(pv0: float, dpv0: float,
               u: float, tau: float, zeta: float, kgain: float
               ) -> tuple[float, float]:
-    """
-    Second-order ODE step via GEKKO:
-      tau^2 * y'' + 2*zeta*tau * y' + y = K*u
-    State: (y, y')
-    """
+    """Second-order ODE: tau^2*y'' + 2*zeta*tau*y' + y = K*u"""
     m = GEKKO(remote=False)
     m.time = [0.0, DT]
     y1 = m.Var(value=pv0)
     y2 = m.Var(value=dpv0)
     u_ = m.Param(value=u)
     m.Equation(y1.dt() == y2)
-    m.Equation(tau**2 * y2.dt() == kgain * u_ - y1 - 2*zeta*tau*y2)
+    m.Equation(tau**2 * y2.dt() == kgain * u_ - y1 - 2 * zeta * tau * y2)
     m.options.IMODE = 4
     m.options.NODES = 2
     m.solve(disp=False, debug=False)
@@ -203,27 +101,53 @@ def _gekko_integrator(pv0: float, u: float, kgain: float) -> float:
 
 
 def _delay_buffer(state: dict, key: str,
-                  value: float, delay_steps: int) -> tuple[float, deque]:
+                  value: float, delay_steps: int) -> tuple[float, list]:
     """
-    Ring-buffer delay line.  Returns (delayed_value, updated_buffer).
-    Buffer is stored as a list in state[key] (deque not JSON-serialisable).
+    Ring-buffer delay line.
+    Returns (delayed_value, updated_buffer_as_list).
+    Buffer stored as list (JSON-serialisable).
     """
     buf = deque(state.get(key, [value] * max(delay_steps, 1)),
                 maxlen=max(delay_steps, 1))
-    delayed = buf[0]       # oldest = most delayed
-    buf.append(value)      # newest
+    delayed = buf[0]
+    buf.append(value)
     return delayed, list(buf)
 
 
-# ── Process model classes ─────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  BASE PROCESS MODEL
+# ══════════════════════════════════════════════════════════════════════════════
+
+class BaseProcessModel(ABC):
+    name:   str  = ""
+    params: list = []          # list of param spec dicts
+
+    @abstractmethod
+    def step(self, pv: float, co: float,
+             model_state: dict, params: dict) -> tuple[float, dict]:
+        """Advance one DT. Returns (new_pv, new_model_state)."""
+
+    def initial_state(self, params: dict) -> dict:
+        return {}
+
+    def initial_pv(self) -> float:
+        return PV_MIN
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  CONCRETE PROCESS MODELS
+# ══════════════════════════════════════════════════════════════════════════════
+
 class IntegratorProcess(BaseProcessModel):
     """dy/dt = K * u"""
     name   = "Integrator"
     params = [
-        {"key":"kgain","label":"K (gain)","min":-10,"max":10,"default":1.0,"step":0.1},
+        {"key": "kgain", "label": "K (gain)", "min": -10, "max": 10,
+         "default": 1.0, "step": 0.1},
     ]
+
     def step(self, pv, co, model_state, params):
-        kgain = params.get("kgain", 1.0)
+        kgain  = params.get("kgain", 1.0)
         pv_new = _gekko_integrator(pv, co, kgain)
         return pv_new, {}
 
@@ -232,12 +156,15 @@ class FirstOrderProcess(BaseProcessModel):
     """tau * dy/dt = -y + K * u"""
     name   = "1st Order"
     params = [
-        {"key":"tau",  "label":"τ (s)",   "min":0.1,"max":30, "default":1.0,"step":0.1},
-        {"key":"kgain","label":"K (gain)","min":-10,"max":10,  "default":1.0,"step":0.1},
+        {"key": "tau",   "label": "τ (s)",    "min": 0.1, "max": 30,
+         "default": 1.0, "step": 0.1},
+        {"key": "kgain", "label": "K (gain)", "min": -10, "max": 10,
+         "default": 1.0, "step": 0.1},
     ]
+
     def step(self, pv, co, model_state, params):
-        tau   = params.get("tau",   1.0)
-        kgain = params.get("kgain", 1.0)
+        tau    = params.get("tau",   1.0)
+        kgain  = params.get("kgain", 1.0)
         pv_new = _gekko_fo(pv, co, tau, kgain)
         return pv_new, {}
 
@@ -246,10 +173,14 @@ class SecondOrderProcess(BaseProcessModel):
     """tau^2*y'' + 2*zeta*tau*y' + y = K*u"""
     name   = "2nd Order"
     params = [
-        {"key":"tau",  "label":"τ (s)",   "min":0.1,"max":20,"default":2.0,"step":0.1},
-        {"key":"zeta", "label":"ζ (damp)","min":0.1,"max":2, "default":0.7,"step":0.05},
-        {"key":"kgain","label":"K (gain)","min":-10,"max":10, "default":1.0,"step":0.1},
+        {"key": "tau",   "label": "τ (s)",    "min": 0.1, "max": 20,
+         "default": 2.0, "step": 0.1},
+        {"key": "zeta",  "label": "ζ (damp)", "min": 0.1, "max": 2,
+         "default": 0.7, "step": 0.05},
+        {"key": "kgain", "label": "K (gain)", "min": -10, "max": 10,
+         "default": 1.0, "step": 0.1},
     ]
+
     def initial_state(self, params):
         return {"dpv": 0.0}
 
@@ -266,17 +197,20 @@ class IntegratorDelayProcess(BaseProcessModel):
     """dy/dt = K * u_delayed,  dead time = theta"""
     name   = "Integrator + Delay"
     params = [
-        {"key":"kgain", "label":"K (gain)",   "min":-10,"max":10, "default":1.0,"step":0.1},
-        {"key":"theta", "label":"θ delay (s)","min":0,  "max":20, "default":1.0,"step":0.05},
+        {"key": "kgain", "label": "K (gain)",    "min": -10, "max": 10,
+         "default": 1.0, "step": 0.1},
+        {"key": "theta", "label": "θ delay (s)", "min": 0,   "max": 20,
+         "default": 1.0, "step": 0.05},
     ]
+
     def initial_state(self, params):
-        steps = max(1, round(params.get("theta", 1.0) / DT))
+        steps   = max(1, round(params.get("theta", 1.0) / DT))
         init_co = (CO_MIN + CO_MAX) / 2
         return {"delay_buf": [init_co] * steps}
 
     def step(self, pv, co, model_state, params):
-        kgain = params.get("kgain", 1.0)
-        theta = params.get("theta", 1.0)
+        kgain       = params.get("kgain", 1.0)
+        theta       = params.get("theta", 1.0)
         delay_steps = max(1, round(theta / DT))
         co_delayed, buf = _delay_buffer(model_state, "delay_buf", co, delay_steps)
         pv_new = _gekko_integrator(pv, co_delayed, kgain)
@@ -287,19 +221,23 @@ class FirstOrderDelayProcess(BaseProcessModel):
     """tau*dy/dt = -y + K*u_delayed,  dead time = theta"""
     name   = "1st Order + Delay"
     params = [
-        {"key":"tau",   "label":"τ (s)",      "min":0.1,"max":30, "default":1.0,"step":0.1},
-        {"key":"kgain", "label":"K (gain)",   "min":-10,"max":10,  "default":1.0,"step":0.1},
-        {"key":"theta", "label":"θ delay (s)","min":0,  "max":20, "default":1.0,"step":0.05},
+        {"key": "tau",   "label": "τ (s)",       "min": 0.1, "max": 30,
+         "default": 1.0, "step": 0.1},
+        {"key": "kgain", "label": "K (gain)",    "min": -10, "max": 10,
+         "default": 1.0, "step": 0.1},
+        {"key": "theta", "label": "θ delay (s)", "min": 0,   "max": 20,
+         "default": 1.0, "step": 0.05},
     ]
+
     def initial_state(self, params):
-        steps = max(1, round(params.get("theta", 1.0) / DT))
+        steps   = max(1, round(params.get("theta", 1.0) / DT))
         init_co = (CO_MIN + CO_MAX) / 2
         return {"delay_buf": [init_co] * steps}
 
     def step(self, pv, co, model_state, params):
-        tau   = params.get("tau",   1.0)
-        kgain = params.get("kgain", 1.0)
-        theta = params.get("theta", 1.0)
+        tau         = params.get("tau",   1.0)
+        kgain       = params.get("kgain", 1.0)
+        theta       = params.get("theta", 1.0)
         delay_steps = max(1, round(theta / DT))
         co_delayed, buf = _delay_buffer(model_state, "delay_buf", co, delay_steps)
         pv_new = _gekko_fo(pv, co_delayed, tau, kgain)
@@ -310,29 +248,35 @@ class SecondOrderDelayProcess(BaseProcessModel):
     """tau^2*y''+2*zeta*tau*y'+y = K*u_delayed,  dead time = theta"""
     name   = "2nd Order + Delay"
     params = [
-        {"key":"tau",   "label":"τ (s)",      "min":0.1,"max":20,"default":2.0,"step":0.1},
-        {"key":"zeta",  "label":"ζ (damp)",   "min":0.1,"max":2, "default":0.7,"step":0.05},
-        {"key":"kgain", "label":"K (gain)",   "min":-10,"max":10, "default":1.0,"step":0.1},
-        {"key":"theta", "label":"θ delay (s)","min":0,  "max":20,"default":1.0,"step":0.05},
+        {"key": "tau",   "label": "τ (s)",       "min": 0.1, "max": 20,
+         "default": 2.0, "step": 0.1},
+        {"key": "zeta",  "label": "ζ (damp)",    "min": 0.1, "max": 2,
+         "default": 0.7, "step": 0.05},
+        {"key": "kgain", "label": "K (gain)",    "min": -10, "max": 10,
+         "default": 1.0, "step": 0.1},
+        {"key": "theta", "label": "θ delay (s)", "min": 0,   "max": 20,
+         "default": 1.0, "step": 0.05},
     ]
+
     def initial_state(self, params):
-        steps = max(1, round(params.get("theta", 1.0) / DT))
+        steps   = max(1, round(params.get("theta", 1.0) / DT))
         init_co = (CO_MIN + CO_MAX) / 2
         return {"delay_buf": [init_co] * steps, "dpv": 0.0}
 
     def step(self, pv, co, model_state, params):
-        tau   = params.get("tau",   2.0)
-        zeta  = params.get("zeta",  0.7)
-        kgain = params.get("kgain", 1.0)
-        theta = params.get("theta", 1.0)
+        tau         = params.get("tau",   2.0)
+        zeta        = params.get("zeta",  0.7)
+        kgain       = params.get("kgain", 1.0)
+        theta       = params.get("theta", 1.0)
         delay_steps = max(1, round(theta / DT))
-        dpv   = model_state.get("dpv", 0.0)
+        dpv         = model_state.get("dpv", 0.0)
         co_delayed, buf = _delay_buffer(model_state, "delay_buf", co, delay_steps)
         pv_new, dpv_new = _gekko_so(pv, dpv, co_delayed, tau, zeta, kgain)
         return pv_new, {"delay_buf": buf, "dpv": dpv_new}
 
 
-# ── Process model registry ────────────────────────────────────────────────────
+# ── Model registry  –  add new models here ───────────────────────────────────
+
 PROCESS_MODELS: dict[str, BaseProcessModel] = {
     "Integrator":          IntegratorProcess(),
     "1st Order":           FirstOrderProcess(),
@@ -343,16 +287,131 @@ PROCESS_MODELS: dict[str, BaseProcessModel] = {
 }
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+#  FLASK APP
+# ══════════════════════════════════════════════════════════════════════════════
+
+app = Flask(__name__, template_folder='templates')
+CORS(app)
+
+# ── Historian file path ───────────────────────────────────────────────────────
+HISTORIAN_PATH = os.path.join(os.path.dirname(__file__), 'historian.xml')
+
+# ── PID controller param spec (shown in UI) ───────────────────────────────────
+PID_PARAMS = [
+    {"key": "kp", "label": "Kp", "min": 0,   "max": 20, "default": 1.0, "step": 0.1},
+    {"key": "ki", "label": "Ki", "min": 0,   "max": 10, "default": 1.0, "step": 0.05},
+    {"key": "kd", "label": "Kd", "min": 0,   "max": 5,  "default": 0.0, "step": 0.01},
+]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  HISTORIAN
+# ══════════════════════════════════════════════════════════════════════════════
+
+_hist_lock = threading.Lock()
+
+
+def _historian_init():
+    """Create or overwrite historian.xml with an empty root."""
+    with open(HISTORIAN_PATH, 'w', encoding='utf-8') as f:
+        f.write('<?xml version="1.0" encoding="utf-8"?>\n<historian>\n</historian>\n')
+
+
+def _historian_append(entry: dict):
+    """
+    Append one <entry .../> line to historian.xml.
+    Uses a fast seek-to-closing-tag strategy to avoid re-parsing the whole file.
+    """
+    attrs = ' '.join(f'{k}="{v}"' for k, v in entry.items())
+    line  = f'  <entry {attrs}/>\n'
+
+    with _hist_lock:
+        with open(HISTORIAN_PATH, 'r+b') as f:
+            f.seek(0, 2)                    # EOF
+            size = f.tell()
+            chunk_size = min(size, 256)
+            f.seek(size - chunk_size)
+            tail = f.read().decode('utf-8')
+            close_tag = '</historian>'
+            idx = tail.rfind(close_tag)
+            if idx == -1:
+                _historian_init()
+                f.seek(0, 2)
+                size = f.tell()
+                f.seek(size - len(close_tag) - 1)
+                idx = 0
+            pos = size - chunk_size + idx
+            f.seek(pos)
+            f.write((line + close_tag + '\n').encode('utf-8'))
+            f.truncate()
+
+
+def _historian_read_last(n: int = 300) -> list[dict]:
+    """
+    Parse historian.xml and return up to the last n entries as a list of dicts.
+    Used by the /historian endpoint to feed the frontend.
+    """
+    try:
+        tree = ET.parse(HISTORIAN_PATH)
+        root = tree.getroot()
+        entries = root.findall('entry')
+        return [e.attrib for e in entries[-n:]]
+    except Exception:
+        return []
+
+
+def _historian_size_kb() -> float:
+    try:
+        return os.path.getsize(HISTORIAN_PATH) / 1024
+    except Exception:
+        return 0.0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  PID CONTROLLER
+# ══════════════════════════════════════════════════════════════════════════════
+
+def pid_step(pv, sp, pv_prev, ierr, Kp, Ki, Kd,
+             co_min=CO_MIN, co_max=CO_MAX):
+    """
+    One discrete PID step with conditional-integration anti-windup.
+    Derivative on PV (no kick on SP steps).
+    Returns (co, ierr_new).
+    """
+    err    = sp - pv
+    dpv_dt = (pv - pv_prev) / DT
+    u_raw  = Kp * err + Ki * ierr - Kd * dpv_dt
+
+    co = max(co_min, min(co_max, u_raw))
+
+    sat_hi    = u_raw > co_max
+    sat_lo    = u_raw < co_min
+    integrate = (not sat_hi or err < 0.0) and (not sat_lo or err > 0.0)
+    if integrate:
+        ierr += err * DT
+
+    return co, ierr
+
+
+def pid_preload(co_man, pv, sp, Kp, Ki):
+    """Pre-load integrator for bumpless MAN→AUTO."""
+    err  = sp - pv
+    ierr = (co_man - Kp * err) / Ki if Ki > 1e-9 else 0.0
+    return {"ierr": ierr, "pv_prev": pv}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  SIMULATION STATE
-# ═══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 
 lock = threading.Lock()
 
-def _fresh_state(model_key: str = "1st Order",
-                 model_params: dict | None = None) -> dict:
+
+def _fresh_state(model_key='1st Order', model_params=None):
     model       = PROCESS_MODELS[model_key]
     init_params = model_params or {p["key"]: p["default"] for p in model.params}
+    _historian_init()
     return dict(
         pv          = PV_MIN,
         ctrl_state  = {"ierr": 0.0, "pv_prev": PV_MIN},
@@ -361,15 +420,20 @@ def _fresh_state(model_key: str = "1st Order",
         last_co     = 0.0,
         mode        = "manual",
         model_key   = model_key,
+        kp          = 1.0,
+        ki          = 1.0,
+        kd          = 0.0,
+        sp          = PV_MIN,
     )
 
+
 state = _fresh_state()
-log: list[dict] = []
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 #  FLASK ROUTES
-# ═══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+
 @app.route("/ping", methods=["GET"])
 def ping():
     return jsonify({"ok": True})
@@ -378,16 +442,16 @@ def ping():
 @app.route("/config", methods=["GET"])
 def config():
     return jsonify({
-        "pv_min": PV_MIN,
-        "pv_max": PV_MAX,
-        "co_min": CO_MIN,
-        "co_max": CO_MAX,
-        "pid_params": PID_PARAMS,
+        "pv_min":         PV_MIN,
+        "pv_max":         PV_MAX,
+        "co_min":         CO_MIN,
+        "co_max":         CO_MAX,
+        "pid_params":     PID_PARAMS,
         "process_models": {
             k: {"name": v.name, "params": v.params}
             for k, v in PROCESS_MODELS.items()
         },
-        "default_model": "1st Order",
+        "default_model":  "1st Order",
     })
 
 
@@ -396,15 +460,13 @@ def step_route():
     body      = request.get_json(force=True)
     mode      = body.get("mode",          "manual")
     co_man    = float(body.get("co_man",  0.0))
-    sp_eng    = float(body.get("sp_eng",  PV_MIN))  # SP in engineering units
+    sp_eng    = float(body.get("sp_eng",  PV_MIN))
     model_key = body.get("process_model", "1st Order")
-
-    # PID gains
     Kp = float(body.get("kp", 1.0))
     Ki = float(body.get("ki", 1.0))
     Kd = float(body.get("kd", 0.0))
 
-    model = PROCESS_MODELS.get(model_key, PROCESS_MODELS["1st Order"])
+    model        = PROCESS_MODELS.get(model_key, PROCESS_MODELS["1st Order"])
     model_params = {p["key"]: float(body.get(p["key"], p["default"]))
                     for p in model.params}
 
@@ -415,29 +477,25 @@ def step_route():
         t           = state["t"]
         prev_model  = state.get("model_key", model_key)
 
-        # Reset model state if model changed
         if model_key != prev_model:
             model_state = model.initial_state(model_params)
 
-        sp = max(PV_MIN, min(PV_MAX, sp_eng))  # clamp SP to PV range
+        sp = max(PV_MIN, min(PV_MAX, sp_eng))
 
         if mode == "manual":
-            co = max(CO_MIN, min(CO_MAX, co_man))
-            # Continuously pre-load for bumpless MAN→AUTO
+            co         = max(CO_MIN, min(CO_MAX, co_man))
             ctrl_state = pid_preload(co, pv, sp, Kp, Ki)
-
-        else:  # AUTO
+        else:
             ierr    = ctrl_state.get("ierr",    0.0)
             pv_prev = ctrl_state.get("pv_prev", pv)
             co, ierr = pid_step(pv, sp, pv_prev, ierr, Kp, Ki, Kd)
             ctrl_state = {"ierr": ierr, "pv_prev": pv}
 
-        # Advance process model
         pv_new, model_state = model.step(pv, co, model_state, model_params)
-
-        # Clamp PV to a reasonable range (prevents runaway display)
         pv_new = max(PV_MIN - 50.0, min(PV_MAX + 50.0, pv_new))
         t_new  = round(t + DT, 6)
+
+        err = sp - pv_new if mode == "auto" else 0.0
 
         state["pv"]          = pv_new
         state["ctrl_state"]  = ctrl_state
@@ -446,14 +504,25 @@ def step_route():
         state["last_co"]     = co
         state["mode"]        = mode
         state["model_key"]   = model_key
+        state["kp"]          = Kp
+        state["ki"]          = Ki
+        state["kd"]          = Kd
+        state["sp"]          = sp
 
-        log.append({
-            "t":    round(t_new, 4),
-            "pv":   round(pv_new, 4),
-            "sp":   round(sp, 4) if mode == "auto" else "",
-            "co":   round(co, 4),
-            "mode": mode,
-        })
+        entry = {
+            "t":      f"{t_new:.4f}",
+            "pv":     f"{pv_new:.4f}",
+            "sp":     f"{sp:.4f}" if mode == "auto" else "",
+            "co":     f"{co:.4f}",
+            "error":  f"{err:.4f}" if mode == "auto" else "",
+            "kp":     f"{Kp:.4f}",
+            "ki":     f"{Ki:.4f}",
+            "kd":     f"{Kd:.4f}",
+            "mode":   mode,
+            "model":  model_key,
+            "params": ";".join(f"{k}={v:.4f}" for k, v in model_params.items()),
+        }
+        _historian_append(entry)
 
     return jsonify({
         "t":       t_new,
@@ -461,26 +530,51 @@ def step_route():
         "sp":      sp if mode == "auto" else None,
         "co":      co,
         "last_co": co,
+        "error":   err,
+        "kp":      Kp,
+        "ki":      Ki,
+        "kd":      Kd,
+        "mode":    mode,
+        "model":   model_key,
     })
+
+
+@app.route("/historian", methods=["GET"])
+def historian_data():
+    """Return last N entries from historian.xml as JSON for the UI."""
+    n = int(request.args.get("n", 300))
+    n = min(n, 3000)
+    entries = _historian_read_last(n)
+    size_kb = _historian_size_kb()
+    return jsonify({"entries": entries, "size_kb": round(size_kb, 1)})
+
+
+@app.route("/export_xml", methods=["GET"])
+def export_xml():
+    """Download the full historian.xml."""
+    return send_file(HISTORIAN_PATH, mimetype="application/xml",
+                     as_attachment=True, download_name="historian.xml")
+
+
+@app.route("/export_csv", methods=["GET"])
+def export_csv():
+    """Convert historian.xml to CSV and serve as download."""
+    entries = _historian_read_last(999999)
+    if not entries:
+        return Response("no data", mimetype="text/plain")
+    fields = ["t", "pv", "sp", "co", "error", "kp", "ki", "kd", "mode", "model", "params"]
+    lines  = [",".join(fields)]
+    for e in entries:
+        lines.append(",".join(e.get(f, "") for f in fields))
+    csv_text = "\n".join(lines)
+    return Response(csv_text, mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=pidsim_log.csv"})
 
 
 @app.route("/transfer_sp", methods=["GET"])
 def transfer_sp():
-    """Return current PV (eng units) to use as SP on MAN→AUTO."""
     with lock:
         return jsonify({"sp_eng": state["pv"], "last_co": state["last_co"]})
-
-
-@app.route("/export", methods=["GET"])
-def export_csv():
-    with lock:
-        snapshot = list(log)
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=["t", "pv", "sp", "co", "mode"])
-    writer.writeheader()
-    writer.writerows(snapshot)
-    return Response(buf.getvalue(), mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=pid_log.csv"})
 
 
 @app.route("/reset", methods=["POST"])
@@ -492,7 +586,6 @@ def reset():
                     for p in model.params}
     with lock:
         state.update(_fresh_state(model_key, model_params))
-        log.clear()
     return jsonify({"ok": True})
 
 
@@ -500,22 +593,18 @@ def reset():
 def status():
     with lock:
         return jsonify({
-            "t": state["t"], "pv": state["pv"],
-            "last_co": state["last_co"],
+            "t": state["t"], "pv": state["pv"], "last_co": state["last_co"],
         })
-    
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
 
+
 # ── PythonAnywhere WSGI entry point ───────────────────────────────────────────
-# PythonAnywhere serves the app via WSGI; the `application` variable is what
-# the WSGI server (uWSGI / gunicorn) looks for automatically.
-# The app is also runnable directly for local testing:
-#   python main.py
-application = app   # <── required by PythonAnywhere WSGI
+application = app
 
 if __name__ == "__main__":
-    # Local dev only — not used on PythonAnywhere
-    print("PID Server  →  http://localhost:5050")
+    print("PIDSim  →  http://localhost:5050")
     app.run(host="0.0.0.0", port=5050, threaded=False)

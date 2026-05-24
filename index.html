@@ -143,9 +143,9 @@
 <div id="overlay">
   <div style="font-size:28px">⚠</div>
   <div class="ov-title">Server not reachable</div>
-  <div class="ov-msg">Start the Python backend first, then click Retry.<br>Dashboard connects to <strong>http://localhost:5050</strong>.</div>
-  <div class="ov-code">pip install flask flask-cors gekko numpy
-python3 main.py</div>
+  <div class="ov-msg">Make sure the backend is running on PythonAnywhere and the web app is started, then click Retry.<br>Dashboard connects to <strong id="ovApiUrl"></strong>.</div>
+  <div class="ov-code">1. Go to pythonanywhere.com → Web tab → Reload
+2. Check the error log if it still fails</div>
   <button class="ov-retry" onclick="retryConnect()">↺ Retry connection</button>
 </div>
 
@@ -266,7 +266,10 @@ python3 main.py</div>
 </footer>
 
 <script>
-const API = 'http://localhost:5050';
+// ── Backend URL ───────────────────────────────────────────────────────────────
+// Replace with your actual PythonAnywhere username below.
+// The URL format is: https://<username>.pythonanywhere.com
+const API = 'https://AGLajoie.pythonanywhere.com';
 const WIN = 60;   // seconds of rolling history
 
 // ── Server-provided config ────────────────────────────────────────────────────
@@ -580,6 +583,7 @@ async function resetSim() {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
+document.getElementById('ovApiUrl').textContent = API;
 tryConnect().then(ok => { if (ok) tick(); });
 </script>
 </body>

@@ -508,6 +508,14 @@ def status():
         })
 
 
+# ── PythonAnywhere WSGI entry point ───────────────────────────────────────────
+# PythonAnywhere serves the app via WSGI; the `application` variable is what
+# the WSGI server (uWSGI / gunicorn) looks for automatically.
+# The app is also runnable directly for local testing:
+#   python main.py
+application = app   # <── required by PythonAnywhere WSGI
+
 if __name__ == "__main__":
+    # Local dev only — not used on PythonAnywhere
     print("PID Server  →  http://localhost:5050")
     app.run(host="0.0.0.0", port=5050, threaded=False)

@@ -23,3 +23,19 @@ pip install -r requirements.txt
 —— Step 5 ——————————————————————————————————————
 
 python main.py
+
+—— Step 6 ——————————————————————————————————————
+
+WSGI configuration file:
+import sys
+sys.path.insert(0, '/home/AGLajoie/PIDSim')
+
+from main import application
+
+BaSH :
+cd ~
+git clone https://github.com/AGLajoie/PIDSim.git
+cd PIDSim
+mkvirtualenv --python=python3.10 pidsim-env
+pip install -r requirements.txt
+python main.py

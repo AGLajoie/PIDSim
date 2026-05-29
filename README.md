@@ -53,21 +53,11 @@ git status
 git pull origin
 
 # Flowchart
-
 ```mermaid
 graph TD
-    A([Start]) --> B{Does it have power?}
+    A[GEKKO Simulation] -->|Sends Simulated Data| B[(Historian Database)]
     
-    B -- No --> C[Plug it in]
-    B -- Yes --> D{Is the outlet switch ON?}
-
-    C --> E[Try turning it on again]
-
-    D -- No --> F[Turn on switch] --> E
-    D -- Yes --> G[Call Tech Support]
-
-    E --> H{Does it work now?}
-    H -- Yes --> I([Success!])
-    H -- No --> G
+    B -->|Pushes Real-Time Data| C[HTML Frontend / UI]
+    C -->|Sends User Inputs & Controls| B
 
 

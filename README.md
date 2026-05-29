@@ -1,5 +1,3 @@
-# PIDSim
-
 ```mermaid
 graph TD
     A([Start]) --> B{Does it have power?}

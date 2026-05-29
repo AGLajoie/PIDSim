@@ -54,9 +54,57 @@ git pull origin
 
 # Flowchart
 ```mermaid
-graph LR
-    A[GEKKO Simulation] -->|Sends Simulated Data| B[(Historian Database)]
-    
-    B -->|Pushes Real-Time Data| C[HTML Frontend / UI]
-    C -->|Sends User Inputs & Controls| B
+```mermaid
+graph TB
+    subgraph Browser["🖥️ Browser — index.html"]
+        UI["User Interface\n(Charts, PID sliders, Mode toggle)"]
+    end
+
+    subgraph Flask["🐍 Flask Server — main.py"]
+        direction TB
+        Routes["HTTP Routes\n/control · /control_state\n/historian · /config\n/reset · /export_csv · /export_xml"]
+        SimLock["sim_lock\n(threading.Lock)"]
+        CtrlIntent["ctrl_intent\n(Shared State)\nmode · SP · CO · Kp · Ki · Kd · model"]
+        SimState["sim_state\n(Live State)\npv · t · last_co · ctrl_state"]
+
+        subgraph SimLoop["⏱️ Background Thread — sim_loop (DT = 100ms)"]
+            DoStep["_do_sim_step()"]
+            PID["PID Controller\nu = Kp·err + Ki·∫err - Kd·dPV/dt\n+ Anti-windup + Bumpless transfer"]
+            Models["Process Model\n(GEKKO ODE Solver)"]
+        end
+
+        subgraph ProcessModels["Process Models"]
+            FO["1st Order\nτ·ẏ = -y + K·u"]
+            SO["2nd Order\nτ²·ÿ = K·u - y - 2ζτ·ẏ"]
+            INT["Integrator\nẏ = K·u"]
+            DELAY["+ Delay variants\n(delay buffer θ)"]
+        end
+    end
+
+    subgraph Historian["📄 historian.xml (Disk)"]
+        XML["XML Entries\nt · pv · sp · co · error\nkp · ki · kd · mode · model"]
+    end
+
+    UI -- "POST /control\n{mode, sp, co, Kp, Ki, Kd, model}" --> Routes
+    UI -- "GET /historian?n=300\nGET /control_state\n(polling every ~500ms)" --> Routes
+
+    Routes <--> SimLock
+    SimLock <--> CtrlIntent
+    SimLock <--> SimState
+
+    SimLoop -- "reads" --> CtrlIntent
+    SimLoop -- "updates" --> SimState
+    DoStep --> PID
+    PID -- "CO →" --> Models
+    Models -- "PV ←" --> DoStep
+
+    Models --> FO
+    Models --> SO
+    Models --> INT
+    Models --> DELAY
+
+    DoStep -- "_historian_append()" --> XML
+    XML -- "_historian_read_last(n)" --> Routes
+    Routes -- "JSON {entries}" --> UI
+```
 

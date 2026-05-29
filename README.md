@@ -56,18 +56,18 @@ git pull origin
 ```mermaid
 ```mermaid
 graph TB
-    subgraph Browser["🖥️ Browser — index.html"]
+    subgraph Browser[" Browser — index.html"]
         UI["User Interface\n(Charts, PID sliders, Mode toggle)"]
     end
 
-    subgraph Flask["🐍 Flask Server — main.py"]
+    subgraph Flask[" Flask Server — main.py"]
         direction TB
         Routes["HTTP Routes\n/control · /control_state\n/historian · /config\n/reset · /export_csv · /export_xml"]
         SimLock["sim_lock\n(threading.Lock)"]
         CtrlIntent["ctrl_intent\n(Shared State)\nmode · SP · CO · Kp · Ki · Kd · model"]
         SimState["sim_state\n(Live State)\npv · t · last_co · ctrl_state"]
 
-        subgraph SimLoop["⏱️ Background Thread — sim_loop (DT = 100ms)"]
+        subgraph SimLoop[" Background Thread — sim_loop (DT = 100ms)"]
             DoStep["_do_sim_step()"]
             PID["PID Controller\nu = Kp·err + Ki·∫err - Kd·dPV/dt\n+ Anti-windup + Bumpless transfer"]
             Models["Process Model\n(GEKKO ODE Solver)"]

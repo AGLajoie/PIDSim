@@ -54,10 +54,9 @@ git pull origin
 
 # Flowchart
 ```mermaid
-graph TD
+graph LR
     A[GEKKO Simulation] -->|Sends Simulated Data| B[(Historian Database)]
     
     B -->|Pushes Real-Time Data| C[HTML Frontend / UI]
     C -->|Sends User Inputs & Controls| B
-
 

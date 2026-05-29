@@ -1,4 +1,22 @@
 # PIDSim
+
+```mermaid
+graph TD
+    A([Start]) --> B{Does it have power?}
+    
+    B -- No --> C[Plug it in]
+    B -- Yes --> D{Is the outlet switch ON?}
+
+    C --> E[Try turning it on again]
+
+    D -- No --> F[Turn on switch] --> E
+    D -- Yes --> G[Call Tech Support]
+
+    E --> H{Does it work now?}
+    H -- Yes --> I([Success!])
+    H -- No --> G
+
+
 General multi-purpose dynamically controlled process simulator.
 
 In BASH (https://www.pythonanywhere.com/user/AGLajoie/consoles/46877070/)

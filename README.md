@@ -108,5 +108,3 @@ graph TB
     XML -- "_historian_read_last(n)" --> Routes
     Routes -- "JSON entries" --> UI
 ```
-
-The main fixes: removed all Unicode math symbols, emoji, `·` separators, and replaced them with plain ASCII commas and dashes.
